@@ -114,7 +114,7 @@ class Autocount
         $companies = $response->json();
         $company = collect($companies)->firstWhere('CompanyName', $this->getSettings('company'));
 
-        return data_get($company, 'Token');
+        return data_get($company, 'ToKen');
     }
 
     /**
@@ -148,12 +148,12 @@ class Autocount
 
         $response = Http::post(url: $url, data: $data)->throw();
 
-        $isSuccessfulLogin = data_get($response->json(), 'LoginToAutoCount');
+        $isSuccessfulLogin = data_get($response->json(), '0.LoginToAutoCount');
 
         throw_if(!$isSuccessfulLogin, \Exception::class, 'Autocount Login Failed');
 
         Cache::put($cachekey, [
-            ...$response->json(),
+            ...data_get($response->json(), '0'),
             'expired_at' => now()->addDays(6),
         ]);
 
