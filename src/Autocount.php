@@ -122,13 +122,6 @@ class Autocount
      */
     public function getJwtToken()
     {
-        $userId = $this->getSettings('user_id');
-        $password = $this->getSettings('password');
-        $companyToken = $this->getCompanyToken();
-
-        throw_if(!$userId || !$password, \Exception::class, 'Missing Autocount User ID / Password');
-        throw_if(!$companyToken, \Exception::class, 'Unable to get Autocount Company Token');
-
         $cachekey = $this->getCacheKey();
         $cache = Cache::get($cachekey);
         $jwtToken = data_get($cache, 'JWTToken');
@@ -137,6 +130,13 @@ class Autocount
         if ($jwtToken && $expiry?->isFuture()) return $jwtToken;
 
         Cache::forget($cachekey);
+
+        $userId = $this->getSettings('user_id');
+        $password = $this->getSettings('password');
+        $companyToken = $this->getCompanyToken();
+
+        throw_if(!$userId || !$password, \Exception::class, 'Missing Autocount User ID / Password');
+        throw_if(!$companyToken, \Exception::class, 'Unable to get Autocount Company Token');
 
         $url = $this->getEndpoint('v3/Login');
 
@@ -269,7 +269,7 @@ class Autocount
             ]),
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -283,13 +283,13 @@ class Autocount
             uri: 'Invoice/GetInvoice',
             method: 'POST',
             data: [
-                'DocNo' => array_filter([$numbers]),
+                'DocNo' => array_filter($numbers),
                 'DateFrom' => $from,
                 'DateTo' => $to,
             ],
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -305,7 +305,7 @@ class Autocount
             data: $data,
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -321,7 +321,7 @@ class Autocount
             ],
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -338,7 +338,7 @@ class Autocount
             ],
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -402,7 +402,7 @@ class Autocount
             ]),
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -420,7 +420,7 @@ class Autocount
             ],
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -436,7 +436,7 @@ class Autocount
             data: $data,
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -452,7 +452,7 @@ class Autocount
             ],
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -469,7 +469,7 @@ class Autocount
             ],
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -541,7 +541,7 @@ class Autocount
             ]),
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -559,7 +559,7 @@ class Autocount
             ],
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -575,7 +575,7 @@ class Autocount
             data: $data,
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -591,7 +591,7 @@ class Autocount
             ],
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -659,7 +659,7 @@ class Autocount
             ]),
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -691,7 +691,7 @@ class Autocount
             data: $data,
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -707,7 +707,7 @@ class Autocount
             ],
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
@@ -724,7 +724,7 @@ class Autocount
             ],
         );
 
-        return data_get($api->json(), 'ResultTable');
+        return $api->json();
     }
 
     /**
