@@ -186,10 +186,17 @@ class Autocount
         $url = $this->getEndpoint($uri);
         $result = Http::withHeader('Authorization', $jwtToken)->$method($url, $data);
 
+        // system level fail
         if ($result->failed()) {
             if ($callback = $this->getSettings('failed_callback')) $result = $callback($result);
             else $result->throw();
         }
+
+        // response level fail
+        $status = data_get($result->json(), 'Status');
+        $message = data_get($result->json(), 'Message');
+        $isFailed = $status === 'Fail' && !str($message)->is('*Record Not Found*');
+        throw_if($isFailed, \Exception::class, $message);
 
         return $result;
     }
@@ -269,7 +276,7 @@ class Autocount
             ]),
         );
 
-        return $api->json();
+        return data_get($api->json(), 'ResultTable');
     }
 
     /**
@@ -282,14 +289,14 @@ class Autocount
         $api = $this->callApi(
             uri: 'Invoice/GetInvoice',
             method: 'POST',
-            data: [
-                'DocNo' => array_filter($numbers),
+            data: array_filter([
+                'DocNo' => array_filter((array) $numbers),
                 'DateFrom' => $from,
                 'DateTo' => $to,
-            ],
+            ]),
         );
 
-        return $api->json();
+        return data_get($api->json(), 'ResultTable');
     }
 
     /**
@@ -541,7 +548,7 @@ class Autocount
             ]),
         );
 
-        return $api->json();
+        return data_get($api->json(), 'ResultTable');
     }
 
     /**
@@ -552,14 +559,14 @@ class Autocount
         $api = $this->callApi(
             uri: 'CreditNote/GetCreditNote',
             method: 'POST',
-            data: [
-                'DocNo' => array_filter([$numbers]),
+            data: array_filter([
+                'DocNo' => array_filter((array) $numbers),
                 'DateFrom' => $from,
                 'DateTo' => $to,
-            ],
+            ]),
         );
 
-        return $api->json();
+        return data_get($api->json(), 'ResultTable');
     }
 
     /**
@@ -659,7 +666,7 @@ class Autocount
             ]),
         );
 
-        return $api->json();
+        return data_get($api->json(), 'ResultTable');
     }
 
     /**
@@ -670,12 +677,14 @@ class Autocount
         $api = $this->callApi(
             uri: 'DebitNote/GetDebitNote',
             method: 'POST',
-            data: [
-                'DocNo' => array_filter([$numbers]),
+            data: array_filter([
+                'DocNo' => array_filter((array) $numbers),
                 'DateFrom' => $from,
                 'DateTo' => $to,
-            ],
+            ]),
         );
+
+        return data_get($api->json(), 'ResultTable');
     }
 
     /**
@@ -797,7 +806,7 @@ class Autocount
             uri: 'Debtor/GetDebtor',
             method: 'POST',
             data: [
-                'AccNo' => $codes,
+                'AccNo' => (array) $codes,
             ],
         );
 
@@ -963,5 +972,118 @@ class Autocount
         );
 
         return $api->json();
+    }
+
+    /**
+     * Create payment
+     * 
+     * Payload structure
+     * -----------------
+     * [
+     *  "DebtorCode": "300-A001",
+     *  "Description": "", 
+     *  "ProjNo": "GOTGVOL03",
+     *  "DeptNo": "D001",
+     *  "ARPaymentDTL": [
+     *      {
+     *          "PaymentMethod": "CASH",
+     *          "PaymentAmt": 100,
+     *          "PaymentBy": "",
+     *          "ChequeNo":"",
+     *          "FloatDay": 0,
+     *          "BankCharge": 0.00,
+     *          "IsRCHQ": "F",
+     *          "RCHQDate": ""
+     *      }
+     *  ],
+     *  "ARPaymentKnockOff": [
+     *      {
+     *          "DocNo": "I-000004",
+     *          "KnockOffAmount": 145 ,//Can not be PaymentAmt > Outstanding 
+     *          "KnockOffDocType": "RI"
+     *          // RI = INVOICE
+     *          // RD = DEBIT NOTE
+     *      }
+     *  ]
+     * ]
+     */
+    public function createPayment($data)
+    {
+        $api = $this->callApi(
+            uri: 'ARPayment',
+            method: 'POST',
+            data: $data,
+        );
+
+        return data_get($api->json(), 'ResultTable.0');
+    }
+
+    /**
+     * Get invoices
+     * 
+     * - date format - YYYY/MM/DD
+     */
+    public function getPayments($numbers = null, $from = null, $to = null)
+    {
+        $api = $this->callApi(
+            uri: 'ARPayment/GetARPayment',
+            method: 'POST',
+            data: array_filter([
+                'DocNo' => array_filter((array) $numbers),
+                'DateFrom' => $from,
+                'DateTo' => $to,
+            ]),
+        );
+
+        return data_get($api->json(), 'ResultTable');
+    }
+
+    /**
+     * Update payment
+     * 
+     * - payload structure refer to create payment
+     */
+    public function updatePayment($data)
+    {
+        $api = $this->callApi(
+            uri: 'ARPayment/UpdateARPayment',
+            method: 'POST',
+            data: $data,
+        );
+
+        return data_get($api->json(), 'ResultTable.0');
+    }
+
+    /**
+     * Delete multiple payments
+     */
+    public function deletePayments($numbers)
+    {
+        $api = $this->callApi(
+            uri: 'ARPayment/DeleteARPayment',
+            method: 'POST',
+            data: [
+                'DocNo' => array_filter((array) $numbers),
+            ],
+        );
+
+        return data_get($api->json(), 'ResultTable');
+    }
+
+    /**
+     * Cancel multiple payments
+     */
+    public function cancelPayments($numbers)
+    {
+        $api = $this->callApi(
+            uri: 'ARPayment/CancelARPayment',
+            method: 'POST',
+            data: [
+                'DocNo' => array_filter((array) $numbers),
+                'Cancelled' => true,
+            ],
+        );
+
+        return data_get($api->json(), 'ResultTable');
     }
 }
