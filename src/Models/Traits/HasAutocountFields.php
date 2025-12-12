@@ -77,4 +77,40 @@ trait HasAutocountFields
     {
         $this->setAutocountField(AutocountFieldType::CREDITOR_CODE, $value);
     }
+
+    /**
+     * Get the sales accounting code
+     */
+    public function getAutocountSalesAccountingCode()
+    {
+        $field = $this->getAutocountField(AutocountFieldType::SALES_ACCOUNTING_CODE);
+
+        return $field?->data;
+    }
+
+    /**
+     * Set the sales accounting code
+     */
+    public function setAutocountSalesAccountingCode($value)
+    {
+        $this->setAutocountField(AutocountFieldType::SALES_ACCOUNTING_CODE, $value);
+    }
+
+    /**
+     * Get the purchase accounting code
+     */
+    public function getAutocountPurchaseAccountingCode()
+    {
+        $field = $this->getAutocountField(AutocountFieldType::PURCHASE_ACCOUNTING_CODE);
+
+        return $field?->data;
+    }
+
+    /**
+     * Set the purchase accounting code
+     */
+    public function setAutocountPurchaseAccountingCode($value)
+    {
+        $this->setAutocountField(AutocountFieldType::PURCHASE_ACCOUNTING_CODE, $value);
+    }
 }
