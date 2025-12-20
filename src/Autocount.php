@@ -16,10 +16,10 @@ class Autocount
     public function __construct()
     {
         $this->settings = [
-            'base_url' => env('AUTOCOUNT_BASE_URL'),
-            'user_id' => env('AUTOCOUNT_USER_ID'),
-            'password' => env('AUTOCOUNT_PASSWORD'),
-            'company' => env('AUTOCOUNT_COMPANY'),
+            'base_url' => config('services.autocount.url'),
+            'user_id' => config('services.autocount.user_id'),
+            'password' => config('services.autocount.password'),
+            'company' => config('services.autocount.account_book'),
             'company_token' => null,
             'jwt_token' => null,
             'failed_callback' => null,
@@ -54,9 +54,9 @@ class Autocount
     }
 
     /**
-     * Set the company
+     * Set the account book
      */
-    public function setCompany($value)
+    public function setAccountBook($value)
     {
         $this->settings['company'] = $value;
         return $this;
@@ -107,7 +107,7 @@ class Autocount
      */
     public function getCompanyToken()
     {
-        throw_if(!$this->getSettings('company'), \Exception::class, 'Missing Autocount Company Name');
+        throw_if(!$this->getSettings('company'), \Exception::class, 'Missing Autocount Account Book');
 
         $url = $this->getEndpoint('MultiCompany');
         $response = Http::get($url)->throw();
@@ -136,7 +136,7 @@ class Autocount
         $companyToken = $this->getCompanyToken();
 
         throw_if(!$userId || !$password, \Exception::class, 'Missing Autocount User ID / Password');
-        throw_if(!$companyToken, \Exception::class, 'Unable to get Autocount Company Token');
+        throw_if(!$companyToken, \Exception::class, 'Unable to get Autocount Account Book Token');
 
         $url = $this->getEndpoint('v3/Login');
 
