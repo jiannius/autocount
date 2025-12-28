@@ -113,4 +113,40 @@ trait HasAutocountFields
     {
         $this->setAutocountField(AutocountFieldType::PURCHASE_ACCOUNTING_CODE, $value);
     }
+
+    /**
+     * Get the autocount request
+     */
+    public function getAutocountRequest()
+    {
+        $field = $this->getAutocountField(AutocountFieldType::REQUEST);
+
+        return $field?->data;
+    }
+
+    /**
+     * Set the autocount request
+     */
+    public function setAutocountRequest($value)
+    {
+        $this->setAutocountField(AutocountFieldType::REQUEST, $value);
+    }
+
+    /**
+     * Get the autocount response
+     */
+    public function getAutocountResponse()
+    {
+        $field = $this->getAutocountField(AutocountFieldType::RESPONSE);
+
+        return $field?->data;
+    }
+
+    /**
+     * Set the autocount response
+     */
+    public function setAutocountResponse($value)
+    {
+        $this->setAutocountField(AutocountFieldType::RESPONSE, $value);
+    }
 }

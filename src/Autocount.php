@@ -266,7 +266,7 @@ class Autocount
             method: 'POST',
             data: Arr::map($data, fn ($invoice) =>[
                 'DocStatus' => 'A',
-                'SubmitEInvoice' => 'T',
+                'SubmitEInvoice' => 'F',
                 'ConsolidatedEInvoice' => 'F',
                 ...Arr::except($invoice, 'IVDTL'),
                 'IVDTL' => Arr::map(data_get($invoice, 'IVDTL', []), fn ($item) => [
@@ -312,7 +312,7 @@ class Autocount
             data: $data,
         );
 
-        return $api->json();
+        return data_get($api->json(), 'ResultTable');
     }
 
     /**
@@ -582,7 +582,7 @@ class Autocount
             data: $data,
         );
 
-        return $api->json();
+        return data_get($api->json(), 'ResultTable');
     }
 
     /**
@@ -700,7 +700,7 @@ class Autocount
             data: $data,
         );
 
-        return $api->json();
+        return data_get($api->json(), 'ResultTable');
     }
 
     /**
@@ -975,7 +975,7 @@ class Autocount
     }
 
     /**
-     * Create payment
+     * Create AR payment
      * 
      * Payload structure
      * -----------------
@@ -1007,7 +1007,7 @@ class Autocount
      *  ]
      * ]
      */
-    public function createPayment($data)
+    public function createARPayments($data)
     {
         $api = $this->callApi(
             uri: 'ARPayment',
@@ -1019,11 +1019,11 @@ class Autocount
     }
 
     /**
-     * Get invoices
+     * Get AR payments
      * 
      * - date format - YYYY/MM/DD
      */
-    public function getPayments($numbers = null, $from = null, $to = null)
+    public function getARPayments($numbers = null, $from = null, $to = null)
     {
         $api = $this->callApi(
             uri: 'ARPayment/GetARPayment',
@@ -1039,11 +1039,11 @@ class Autocount
     }
 
     /**
-     * Update payment
+     * Update AR payment
      * 
      * - payload structure refer to create payment
      */
-    public function updatePayment($data)
+    public function updateARPayment($data)
     {
         $api = $this->callApi(
             uri: 'ARPayment/UpdateARPayment',
@@ -1055,9 +1055,9 @@ class Autocount
     }
 
     /**
-     * Delete multiple payments
+     * Delete multiple AR payments
      */
-    public function deletePayments($numbers)
+    public function deleteARPayments($numbers)
     {
         $api = $this->callApi(
             uri: 'ARPayment/DeleteARPayment',
@@ -1071,9 +1071,9 @@ class Autocount
     }
 
     /**
-     * Cancel multiple payments
+     * Cancel multiple AR payments
      */
-    public function cancelPayments($numbers)
+    public function cancelARPayments($numbers)
     {
         $api = $this->callApi(
             uri: 'ARPayment/CancelARPayment',
@@ -1085,5 +1085,116 @@ class Autocount
         );
 
         return data_get($api->json(), 'ResultTable');
+    }
+
+    /**
+     * Create multiple purchase invoices
+     * 
+     * Payload structure
+     * ==============================
+     * 
+     * [
+     *     {
+     *         "CreditorCode": "400-W003",//After u maintenance in Deptor maintenance u can ignore CreditorName,InvAddr1,2,3,4
+     *         "CreditorName": "A001",
+     *         //"InvAddr1": "Taman Setia Indah",
+     *         //"InvAddr2": "Johor Bahru",
+     *         //"InvAddr3": "Seri Austin",
+     *         //"InvAddr4": "",
+     *         "PIDTL": [
+     *             {
+     *                 "ItemCode": "002",
+     *                 "Location": "HQ",
+     *                 "Description": "TTT",
+     *                 "Desc2":"",
+     *                 "FurtherDescription": "testing",
+     *                 //"ProjNo": "GOTGVOL03",
+     *                 //"DeptNo": "D001",
+     *                 "UnitPrice":"44",
+     *                 // "UOM": "PCS",
+     *                 "Qty": 2
+     *             }
+     *         ]
+     *     }
+     * ]
+     */
+    public function createPurchaseInvoices($data)
+    {
+        $api = $this->callApi(
+            uri: 'PurchaseInvoice',
+            method: 'POST',
+            data: $data,
+        );
+
+        return data_get($api->json(), 'ResultTable');
+    }
+
+    /**
+     * Get purchase invoices
+     * 
+     * - date format - YYYY/MM/DD
+     */
+    public function getPurchaseInvoices($numbers = null, $from = null, $to = null)
+    {
+        $api = $this->callApi(
+            uri: 'PurchaseInvoice/GetPurchaseInvoice',
+            method: 'POST',
+            data: array_filter([
+                'DocNo' => array_filter((array) $numbers),
+                'DateFrom' => $from,
+                'DateTo' => $to,
+            ]),
+        );
+
+        return data_get($api->json(), 'ResultTable');
+    }
+
+    /**
+     * Update multiple purchase invoices
+     * 
+     * - payload structure refer to create invoice
+     */
+    public function updatePurchaseInvoices($data)
+    {
+        $api = $this->callApi(
+            uri: 'PurchaseInvoice/UpdatePurchaseInvoice',
+            method: 'POST',
+            data: $data,
+        );
+
+        return $api->json();
+    }
+
+    /**
+     * Delete multiple purchase invoices
+     */
+    public function deletePurchaseInvoices($numbers)
+    {
+        $api = $this->callApi(
+            uri: 'PurchaseInvoice/DeletePurchaseInvoice',
+            method: 'POST',
+            data: [
+                'DocNo' => array_filter((array) $numbers),
+            ],
+        );
+
+        return $api->json();
+    }
+
+    /**
+     * Cancel multiple purchase invoices
+     */
+    public function cancelPurchaseInvoices($numbers)
+    {
+        $api = $this->callApi(
+            uri: 'PurchaseInvoice/CancelPurchaseInvoice',
+            method: 'POST',
+            data: [
+                'DocNo' => array_filter((array) $numbers),
+                'Cancelled' => true,
+            ],
+        );
+
+        return $api->json();
     }
 }

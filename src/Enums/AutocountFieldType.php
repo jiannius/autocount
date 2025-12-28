@@ -9,4 +9,6 @@ enum AutocountFieldType: string
     case PURCHASE_ACCOUNTING_CODE = 'purchase-accounting-code';
     case SALES_ACCOUNTING_CODE = 'sales-accounting-code';
     case PAYMENT_ACCOUNTING_CODE = 'payment-accounting-code';
+    case REQUEST = 'request';
+    case RESPONSE = 'response';
 }
