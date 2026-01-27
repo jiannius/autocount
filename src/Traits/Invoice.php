@@ -89,21 +89,23 @@ trait Invoice
      */
     public function getInvoices($numbers = null, $from = null, $to = null)
     {
-        $api = $this->callApi(
-            uri: 'Invoice/GetInvoice',
-            method: 'POST',
-            data: array_filter([
-                'DocNo' => array_filter((array) $numbers),
-                'DateFrom' => $from,
-                'DateTo' => $to,
-            ]),
-        );
+        try {
+            $api = $this->callApi(
+                uri: 'Invoice/GetInvoice',
+                method: 'POST',
+                data: array_filter([
+                    'DocNo' => array_filter((array) $numbers),
+                    'DateFrom' => $from,
+                    'DateTo' => $to,
+                ]),
+            );
 
-        $result = $api->json();
-
-        throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
-
-        return $result;
+            return $api->json();
+        }
+        catch (\Exception $e) {
+            if (str($e->getMessage())->slug()->is('*not-found*')) return [];
+            else throw new \Exception($e->getMessage());
+        }
     }
 
     /**
@@ -116,7 +118,12 @@ trait Invoice
         $api = $this->callApi(
             uri: 'Invoice/UpdateInvoice',
             method: 'POST',
-            data: [$data],
+            data: [[
+                'DocStatus' => 'A',
+                'SubmitEInvoice' => 'F',
+                'ConsolidatedEInvoice' => 'F',
+                ...$data,
+            ]],
         );
 
         $result = $api->json();

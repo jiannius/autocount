@@ -2,8 +2,6 @@
 
 namespace Jiannius\Autocount\Traits;
 
-use Illuminate\Support\Arr;
-
 trait PurchaseInvoice
 {
     /**
@@ -37,15 +35,19 @@ trait PurchaseInvoice
      *     }
      * ]
      */
-    public function createPurchaseInvoices($data)
+    public function createPurchaseInvoice($data)
     {
         $api = $this->callApi(
             uri: 'PurchaseInvoice',
             method: 'POST',
-            data: $data,
+            data: [$data],
         );
 
-        return data_get($api->json(), 'ResultTable');
+        $result = $api->json();
+
+        throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
+
+        return $result;
     }
 
     /**
@@ -55,17 +57,23 @@ trait PurchaseInvoice
      */
     public function getPurchaseInvoices($numbers = null, $from = null, $to = null)
     {
-        $api = $this->callApi(
-            uri: 'PurchaseInvoice/GetPurchaseInvoice',
-            method: 'POST',
-            data: array_filter([
-                'DocNo' => array_filter((array) $numbers),
-                'DateFrom' => $from,
-                'DateTo' => $to,
-            ]),
-        );
+        try {
+            $api = $this->callApi(
+                uri: 'PurchaseInvoice/GetPurchaseInvoice',
+                method: 'POST',
+                data: array_filter([
+                    'DocNo' => array_filter((array) $numbers),
+                    'DateFrom' => $from,
+                    'DateTo' => $to,
+                ]),
+            );
 
-        return data_get($api->json(), 'ResultTable');
+            return $api->json();
+        }
+        catch (\Exception $e) {
+            if (str($e->getMessage())->slug()->is('*not-found*')) return [];
+            else throw new \Exception($e->getMessage());
+        }
     }
 
     /**
@@ -73,15 +81,19 @@ trait PurchaseInvoice
      * 
      * - payload structure refer to create invoice
      */
-    public function updatePurchaseInvoices($data)
+    public function updatePurchaseInvoice($data)
     {
         $api = $this->callApi(
             uri: 'PurchaseInvoice/UpdatePurchaseInvoice',
             method: 'POST',
-            data: $data,
+            data: [$data],
         );
 
-        return $api->json();
+        $result = $api->json();
+
+        throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
+
+        return $result;
     }
 
     /**
@@ -92,12 +104,14 @@ trait PurchaseInvoice
         $api = $this->callApi(
             uri: 'PurchaseInvoice/DeletePurchaseInvoice',
             method: 'POST',
-            data: [
-                'DocNo' => array_filter((array) $numbers),
-            ],
+            data: ['DocNo' => array_filter((array) $numbers)],
         );
 
-        return $api->json();
+        $result = $api->json();
+
+        throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
+
+        return $result;
     }
 
     /**
@@ -114,6 +128,10 @@ trait PurchaseInvoice
             ],
         );
 
-        return $api->json();
+        $result = $api->json();
+
+        throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
+
+        return $result;
     }   
 }

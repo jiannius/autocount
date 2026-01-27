@@ -54,7 +54,11 @@ trait Creditor
             ],
         );
 
-        return $api->json();
+        $creditor = data_get($api->json(), '0');
+
+        throw_if(data_get($creditor, 'Status') === 'Fail', \Exception::class, data_get($creditor, 'Message'));
+
+        return $creditor;
     }
 
     /**
@@ -65,9 +69,7 @@ trait Creditor
         $api = $this->callApi(
             uri: 'Creditor/GetCreditor',
             method: 'POST',
-            data: [
-                'AccNo' => $codes,
-            ],
+            data: ['AccNo' => (array) $codes],
         );
 
         return $api->json();
@@ -97,10 +99,12 @@ trait Creditor
         $api = $this->callApi(
             uri: 'Creditor/UpdateCreditor',
             method: 'POST',
-            data: $data,
+            data: [$data],
         );
 
-        return $api->json();
+        $result = $api->json();
+
+        return data_get($result, '0');
     }
 
     /**
@@ -111,9 +115,7 @@ trait Creditor
         $api = $this->callApi(
             uri: 'Creditor/DeleteCreditor',
             method: 'POST',
-            data: [
-                'AccNo' => $code,
-            ],
+            data: ['AccNo' => (array) $code],
         );
 
         return $api->json();

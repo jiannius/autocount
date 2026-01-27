@@ -83,17 +83,23 @@ trait CreditNote
      */
     public function getCreditNotes($numbers = null, $from = null, $to = null)
     {
-        $api = $this->callApi(
-            uri: 'CreditNote/GetCreditNote',
-            method: 'POST',
-            data: array_filter([
-                'DocNo' => array_filter((array) $numbers),
-                'DateFrom' => $from,
-                'DateTo' => $to,
-            ]),
-        );
+        try {
+            $api = $this->callApi(
+                uri: 'CreditNote/GetCreditNote',
+                method: 'POST',
+                data: array_filter([
+                    'DocNo' => array_filter((array) $numbers),
+                    'DateFrom' => $from,
+                    'DateTo' => $to,
+                ]),
+            );
 
-        return $api->json();
+            return $api->json();
+        }
+        catch (\Exception $e) {
+            if (str($e->getMessage())->slug()->is('*not-found*')) return [];
+            else throw new \Exception($e->getMessage());
+        }
     }
 
     /**
