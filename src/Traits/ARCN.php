@@ -4,45 +4,37 @@ namespace Jiannius\Autocount\Traits;
 
 use Illuminate\Support\Arr;
 
-trait ARPayment
+trait ARCN
 {
     /**
-     * Create AR payment
+     * Create ARCN
      * 
      * Payload structure
      * -----------------
-     * [
-     *  "DebtorCode": "300-A001",
-     *  "Description": "", 
-     *  "ProjNo": "GOTGVOL03",
-     *  "DeptNo": "D001",
-     *  "ARPaymentDTL": [
-     *      {
-     *          "PaymentMethod": "CASH",
-     *          "PaymentAmt": 100,
-     *          "PaymentBy": "",
-     *          "ChequeNo":"",
-     *          "FloatDay": 0,
-     *          "BankCharge": 0.00,
-     *          "IsRCHQ": "F",
-     *          "RCHQDate": ""
-     *      }
-     *  ],
-     *  "ARPaymentKnockOff": [
-     *      {
-     *          "DocNo": "I-000004",
-     *          "KnockOffAmount": 145 ,//Can not be PaymentAmt > Outstanding 
-     *          "KnockOffDocType": "RI"
-     *          // RI = INVOICE
-     *          // RD = DEBIT NOTE
-     *      }
-     *  ]
-     * ]
+     * {
+     *     "DebtorCode": "3000/A02",
+     *     "Description": "",
+     *     "JournalType":"SALES",
+     *     "ARCNDTL": [
+     *         {
+     *             "AccNo": "2002/000",
+     *             "PaymentBy": "",
+     *             "Amount": 10
+     *      
+     *         }
+     *     ],
+     *     "ARCNKnockOff": [
+     *         {
+     *             "DocNo": "INV0384/23",
+     *             "KnocOffAmount": 10
+     *         }
+     *     ]
+     * }
      */
-    public function createARPayments($data)
+    public function createARCN($data)
     {
         $api = $this->callApi(
-            uri: 'ARPayment',
+            uri: 'ARCreditNote',
             method: 'POST',
             data: $data,
         );
@@ -55,21 +47,15 @@ trait ARPayment
     }
 
     /**
-     * Get AR payments
-     * 
-     * - date format - YYYY/MM/DD
+     * Get ARCN
      */
-    public function getARPayments($numbers = null, $from = null, $to = null)
+    public function getARCNs($numbers = null)
     {
         try {
             $api = $this->callApi(
-                uri: 'ARPayment/GetARPayment',
+                uri: 'ARCreditNote/GetARCreditNote',
                 method: 'POST',
-                data: array_filter([
-                    'DocNo' => array_filter((array) $numbers),
-                    'DateFrom' => $from,
-                    'DateTo' => $to,
-                ]),
+                data: ['DocNo' => array_filter((array) $numbers)],
             );
 
             return $api->json();
@@ -81,14 +67,12 @@ trait ARPayment
     }
 
     /**
-     * Update AR payment
-     * 
-     * - payload structure refer to create payment
+     * Update ARCN
      */
-    public function updateARPayment($data)
+    public function updateARCN($data)
     {
         $api = $this->callApi(
-            uri: 'ARPayment/UpdateARPayment',
+            uri: 'ARCreditNote/UpdateARCreditNote',
             method: 'POST',
             data: $data,
         );
@@ -101,12 +85,12 @@ trait ARPayment
     }
 
     /**
-     * Delete multiple AR payments
+     * Delete ARCN
      */
-    public function deleteARPayments($numbers)
+    public function deleteARCNs($numbers)
     {
         $api = $this->callApi(
-            uri: 'ARPayment/DeleteARPayment',
+            uri: 'ARCreditNote/DeleteARCreditNote',
             method: 'POST',
             data: ['DocNo' => array_filter((array) $numbers)],
         );
@@ -119,12 +103,12 @@ trait ARPayment
     }
 
     /**
-     * Cancel multiple AR payments
+     * Cancel ARCN
      */
-    public function cancelARPayments($numbers)
+    public function cancelARCNs($numbers)
     {
         $api = $this->callApi(
-            uri: 'ARPayment/CancelARPayment',
+            uri: 'ARCreditNote/CancelARCreditNote',
             method: 'POST',
             data: [
                 'DocNo' => array_filter((array) $numbers),
@@ -137,5 +121,5 @@ trait ARPayment
         throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
 
         return $result;
-    }   
+    }
 }

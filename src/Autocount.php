@@ -4,6 +4,9 @@ namespace Jiannius\Autocount;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Jiannius\Autocount\Traits\APCN;
+use Jiannius\Autocount\Traits\APPayment;
+use Jiannius\Autocount\Traits\ARCN;
 use Jiannius\Autocount\Traits\ARPayment;
 use Jiannius\Autocount\Traits\CashSales;
 use Jiannius\Autocount\Traits\CreditNote;
@@ -17,6 +20,9 @@ use Jiannius\Autocount\Traits\PurchaseInvoice;
 
 class Autocount
 {
+    use APCN;
+    use APPayment;
+    use ARCN;
     use ARPayment;
     use CashSales;
     use CreditNote;
