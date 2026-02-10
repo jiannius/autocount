@@ -39,7 +39,7 @@ trait ARPayment
      *  ]
      * ]
      */
-    public function createARPayments($data)
+    public function createARPayment($data)
     {
         $api = $this->callApi(
             uri: 'ARPayment',
