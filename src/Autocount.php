@@ -8,6 +8,8 @@ use Jiannius\Autocount\Traits\APCN;
 use Jiannius\Autocount\Traits\APPayment;
 use Jiannius\Autocount\Traits\ARCN;
 use Jiannius\Autocount\Traits\ARPayment;
+use Jiannius\Autocount\Traits\ARDN;
+use Jiannius\Autocount\Traits\ARRefund;
 use Jiannius\Autocount\Traits\CashBook;
 use Jiannius\Autocount\Traits\CashSales;
 use Jiannius\Autocount\Traits\CreditNote;
@@ -24,7 +26,9 @@ class Autocount
     use APCN;
     use APPayment;
     use ARCN;
+    use ARDN;
     use ARPayment;
+    use ARRefund;
     use CashBook;
     use CashSales;
     use CreditNote;
