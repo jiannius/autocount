@@ -21,6 +21,7 @@ use Jiannius\Autocount\Traits\Invoice;
 use Jiannius\Autocount\Traits\Item;
 use Jiannius\Autocount\Traits\Project;
 use Jiannius\Autocount\Traits\PurchaseInvoice;
+use Jiannius\Autocount\Traits\TaxEntity;
 
 class Autocount
 {
@@ -41,6 +42,7 @@ class Autocount
     use Item;
     use Project;
     use PurchaseInvoice;
+    use TaxEntity;
 
     public $settings = [];
 
