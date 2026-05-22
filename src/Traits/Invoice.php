@@ -68,7 +68,7 @@ trait Invoice
             uri: 'Invoice',
             method: 'POST',
             data: [[
-                'DocStatus' => 'A',
+                'DocStatus' => 'D',
                 'SubmitEInvoice' => 'F',
                 'ConsolidatedEInvoice' => 'F',
                 ...$data,

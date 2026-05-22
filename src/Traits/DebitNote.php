@@ -47,8 +47,8 @@ trait DebitNote
             uri: 'DebitNote',
             method: 'POST',
             data: [[
-                'DocStatus' => 'A',
-                'SubmitEInvoice' => 'T',
+                'DocStatus' => 'D',
+                'SubmitEInvoice' => 'F',
                 'ConsolidatedEInvoice' => 'F',
                 ...$data,
             ]],
