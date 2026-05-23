@@ -64,15 +64,19 @@ trait Invoice
      */
     public function createInvoice($data)
     {
+        $payload = [[
+            'DocStatus' => 'D',
+            'SubmitEInvoice' => 'F',
+            'ConsolidatedEInvoice' => 'F',
+            ...$data,
+        ]];
+
+        \Illuminate\Support\Facades\Log::info('Autocount createInvoice payload', $payload);
+
         $api = $this->callApi(
             uri: 'Invoice',
             method: 'POST',
-            data: [[
-                'DocStatus' => 'D',
-                'SubmitEInvoice' => 'F',
-                'ConsolidatedEInvoice' => 'F',
-                ...$data,
-            ]],
+            data: $payload,
         );
 
         $result = $api->json();
