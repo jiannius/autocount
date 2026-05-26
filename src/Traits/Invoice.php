@@ -81,6 +81,8 @@ trait Invoice
 
         $result = $api->json();
 
+        \Illuminate\Support\Facades\Log::info('Autocount createInvoice result', $result);
+
         throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
 
         return $result;
