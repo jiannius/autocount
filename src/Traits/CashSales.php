@@ -2,8 +2,6 @@
 
 namespace Jiannius\Autocount\Traits;
 
-use Illuminate\Support\Arr;
-
 trait CashSales
 {
     /**
@@ -54,17 +52,19 @@ trait CashSales
      *       "PaymentAmt": 100
      *   }
      * ]
+     *
+     * Field order gotcha
+     * ------------------
+     * - SubmitEInvoice / ConsolidatedEInvoice must appear AFTER DEBTORCODE, DocNo, and
+     *   DocDate in each entry. If placed earlier, the server silently resets them to
+     *   its own defaults. The caller is responsible for ordering.
      */
     public function createCashSales($data)
     {
         $api = $this->callApi(
             uri: 'CashSales',
             method: 'POST',
-            data: Arr::map($data, fn ($sale) => [
-                'SubmitEInvoice' => 'T',
-                'ConsolidatedEInvoice' => 'F',
-                ...$sale,
-            ]),
+            data: $data,
         );
 
         return $api->json();

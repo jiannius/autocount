@@ -69,19 +69,13 @@ trait Invoice
      */
     public function createInvoice($data)
     {
-        $payload = [$data];
-
-        \Illuminate\Support\Facades\Log::info('Autocount createInvoice payload', $payload);
-
         $api = $this->callApi(
             uri: 'Invoice',
             method: 'POST',
-            data: $payload,
+            data: [$data],
         );
 
         $result = $api->json();
-
-        \Illuminate\Support\Facades\Log::info('Autocount createInvoice result', $result);
 
         throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
 

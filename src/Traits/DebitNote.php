@@ -39,19 +39,20 @@ trait DebitNote
      *             }
      *         ]
      *     }
-     * ] 
+     * ]
+     *
+     * Field order gotcha
+     * ------------------
+     * - DocStatus / SubmitEInvoice / ConsolidatedEInvoice must appear AFTER DebtorCode,
+     *   DocNo, and DocDate in the payload. If placed earlier, the server silently resets
+     *   them to its own defaults. The caller is responsible for ordering.
      */
     public function createDebitNote($data)
     {
         $api = $this->callApi(
             uri: 'DebitNote',
             method: 'POST',
-            data: [[
-                'DocStatus' => 'D',
-                'SubmitEInvoice' => 'F',
-                'ConsolidatedEInvoice' => 'F',
-                ...$data,
-            ]],
+            data: [$data],
         );
 
         $result = $api->json();
