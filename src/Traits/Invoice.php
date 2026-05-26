@@ -124,12 +124,7 @@ trait Invoice
         $api = $this->callApi(
             uri: 'Invoice/UpdateInvoice',
             method: 'POST',
-            data: [[
-                'DocStatus' => 'A',
-                'SubmitEInvoice' => 'F',
-                'ConsolidatedEInvoice' => 'F',
-                ...$data,
-            ]],
+            data: [$data],
         );
 
         $result = $api->json();
