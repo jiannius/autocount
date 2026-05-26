@@ -60,16 +60,16 @@ trait Invoice
      * - SubmitEinvoice: T ; DocStatus: D wont submit
      * - SubmitEinvoice: F ; DocStatus: A wont submit
      * - SubmitEinvoice: T and DocStatus: A it will Submit
-     * 
+     *
+     * Field order gotcha
+     * ------------------
+     * - DocStatus / SubmitEInvoice / ConsolidatedEInvoice must appear AFTER DEBTORCODE,
+     *   DocNo, and DocDate in the payload. If placed earlier, the server silently resets
+     *   them to its own defaults. The caller is responsible for ordering.
      */
     public function createInvoice($data)
     {
-        $payload = [[
-            'DocStatus' => 'D',
-            'SubmitEInvoice' => 'F',
-            'ConsolidatedEInvoice' => 'F',
-            ...$data,
-        ]];
+        $payload = [$data];
 
         \Illuminate\Support\Facades\Log::info('Autocount createInvoice payload', $payload);
 
