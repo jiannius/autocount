@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Jiannius\Autocount\Traits\APCN;
 use Jiannius\Autocount\Traits\APDN;
+use Jiannius\Autocount\Traits\APInvoice;
 use Jiannius\Autocount\Traits\APPayment;
 use Jiannius\Autocount\Traits\ARCN;
 use Jiannius\Autocount\Traits\ARInvoice;
@@ -28,6 +29,7 @@ class Autocount
 {
     use APCN;
     use APDN;
+    use APInvoice;
     use APPayment;
     use ARCN;
     use ARInvoice;
