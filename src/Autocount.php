@@ -8,6 +8,7 @@ use Jiannius\Autocount\Traits\APCN;
 use Jiannius\Autocount\Traits\APDN;
 use Jiannius\Autocount\Traits\APPayment;
 use Jiannius\Autocount\Traits\ARCN;
+use Jiannius\Autocount\Traits\ARInvoice;
 use Jiannius\Autocount\Traits\ARPayment;
 use Jiannius\Autocount\Traits\ARDN;
 use Jiannius\Autocount\Traits\ARRefund;
@@ -29,6 +30,7 @@ class Autocount
     use APDN;
     use APPayment;
     use ARCN;
+    use ARInvoice;
     use ARDN;
     use ARPayment;
     use ARRefund;
