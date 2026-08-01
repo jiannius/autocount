@@ -199,10 +199,26 @@ class Autocount
         if (!$token) abort(500, 'Missing Autocount Token');
 
         $url = $this->getEndpoint($uri);
-        $result = Http::withHeaders([
+        $request = Http::withHeaders([
             'Authorization' => $token,
             'AppId' => $this->getSettings('app_id'),
-        ])->$method($url, $data);
+        ]);
+
+        // A whole amount must stay a decimal on the wire. json_encode() drops the
+        // fractional zero, so 89888.00 goes out as the token 89888, and Autocount
+        // infers each field's type from the FIRST record — one integer there and
+        // the whole set is read as integer, rounding every later value. A knockoff
+        // of 89888.00 + 4441.96 became 89888 + 4442 and was rejected with
+        // "PaymentAmt > Outstanding", because 4442 exceeds the 4441.96 the debit
+        // note actually had. Confirmed by AutoCount support 2026-08-01; the same
+        // payload with JSON_PRESERVE_ZERO_FRACTION was accepted.
+        //
+        // GET has no body — there $data is the query string.
+        $result = $method === 'get'
+            ? $request->get($url, $data)
+            : $request
+                ->withBody(json_encode($data, JSON_PRESERVE_ZERO_FRACTION), 'application/json')
+                ->$method($url);
 
         // system level fail
         if ($result->failed()) {
