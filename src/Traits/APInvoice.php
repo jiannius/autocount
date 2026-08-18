@@ -74,7 +74,7 @@ trait APInvoice
             return $api->json();
         }
         catch (\Exception $e) {
-            if (str($e->getMessage())->slug()->is('*not-found*')) return [];
+            if ($this->isRecordNotFound($e)) return [];
             else throw new \Exception($e->getMessage());
         }
     }

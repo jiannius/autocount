@@ -189,6 +189,35 @@ class Autocount
     }
 
     /**
+     * Is this exception Autocount telling us the record simply isn't there?
+     *
+     * Absence comes back through the same Fail/Message channel as a real error, and
+     * is phrased differently per endpoint:
+     *
+     *   most lookups          "... not found"
+     *   CashBook/GetCashBook  "Get Cash Book Entry Record : The source contains no
+     *                          DataRows."
+     *
+     * The second is a .NET DataTable error surfacing verbatim — it means the query
+     * matched zero rows, which for a getX() is absence, not failure.
+     *
+     * This used to be a `*not-found*` slug test copy-pasted into fifteen traits, so
+     * the DataRows phrasing fell through and rethrew. That made an existence probe
+     * fail precisely when the record did not exist: smgcrm's createCashBook() asks
+     * "does this cash book exist?" to choose create vs update, and could therefore
+     * never create a new one (reported 18 Aug 2026, payment FR-2607-0001-KI-BG-SR).
+     *
+     * Add new phrasings here, not in the traits.
+     */
+    public function isRecordNotFound(\Throwable $e) : bool
+    {
+        $message = str($e->getMessage());
+
+        return $message->slug()->is('*not-found*')
+            || $message->lower()->contains('contains no datarows');
+    }
+
+    /**
      * Call the API
      */
     public function callApi($uri, $method = 'GET', $data = []) : mixed
