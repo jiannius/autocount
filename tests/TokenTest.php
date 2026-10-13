@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -117,4 +118,121 @@ it('caches a token with no readable expiry for an hour', function () {
 
     $this->travelTo(now()->addMinutes(2));
     expect(Cache::get('autocount_token_app-1'))->toBeNull();
+});
+
+it('replays a failed POST with the same body after an expired token is rejected', function () {
+    $stale = jwt(now()->addDays(3)->timestamp);
+    $fresh = jwt(now()->addDays(7)->timestamp);
+
+    Cache::put('autocount_token_app-1', $stale);
+
+    Http::fake([
+        '*/Server/Login' => Http::response([['JWTToken' => $fresh]]),
+        '*/Debtor/Get' => fn ($request) => $request->hasHeader('Authorization', $stale)
+            ? Http::response(['ClassName' => 'System.ArgumentException', 'Message' => 'Stream was not readable.'], 500)
+            : Http::response([]),
+    ]);
+
+    autocount()->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]);
+
+    expect(loginRequests())->toHaveCount(1)
+        ->and(apiRequests())->toHaveCount(2)
+        ->and(apiRequests()->map->method()->unique()->values()->all())->toBe(['POST'])
+        ->and(apiRequests()->first()->body())->toBe(apiRequests()->last()->body());
+});
+
+it('does not retry a POST rejected with a 400 and throws the original message', function () {
+    Cache::put('autocount_token_app-1', jwt(now()->addDays(3)->timestamp));
+
+    Http::fake([
+        '*/Debtor/Get' => Http::response(['Status' => 'Fail', 'Message' => 'Debtor code already exists'], 400),
+    ]);
+
+    $thrown = null;
+
+    try {
+        autocount()->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]);
+    } catch (RequestException $e) {
+        $thrown = $e;
+    }
+
+    expect($thrown)->not->toBeNull()
+        ->and($thrown->getMessage())->toContain('Debtor code already exists')
+        ->and(loginRequests())->toHaveCount(0)
+        ->and(apiRequests())->toHaveCount(1);
+});
+
+it('does not retry a POST rejected with a 503', function () {
+    Cache::put('autocount_token_app-1', jwt(now()->addDays(3)->timestamp));
+
+    Http::fake(['*/Debtor/Get' => Http::response('unavailable', 503)]);
+
+    expect(fn () => autocount()->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]))
+        ->toThrow(RequestException::class);
+
+    expect(loginRequests())->toHaveCount(0)
+        ->and(apiRequests())->toHaveCount(1);
+});
+
+it('lets a connection failure propagate without a retry', function () {
+    Cache::put('autocount_token_app-1', jwt(now()->addDays(3)->timestamp));
+
+    $attempts = 0;
+
+    Http::fake(['*/Debtor/Get' => function () use (&$attempts) {
+        $attempts++;
+
+        throw new ConnectionException('cURL error 28: timed out');
+    }]);
+
+    expect(fn () => autocount()->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]))
+        ->toThrow(ConnectionException::class);
+
+    expect(loginRequests())->toHaveCount(0)
+        ->and($attempts)->toBe(1);
+});
+
+it('does not retry when the token was minted during the same call', function () {
+    Http::fake([
+        '*/Server/Login' => Http::response([['JWTToken' => jwt(now()->addDays(7)->timestamp)]]),
+        '*/Debtor/Get' => Http::response(['Message' => 'Stream was not readable.'], 500),
+    ]);
+
+    expect(fn () => autocount()->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]))
+        ->toThrow(RequestException::class);
+
+    expect(loginRequests())->toHaveCount(1)
+        ->and(apiRequests())->toHaveCount(1);
+});
+
+it('runs the failed callback once, on the final response', function () {
+    Cache::put('autocount_token_app-1', jwt(now()->addDays(3)->timestamp));
+
+    Http::fake([
+        '*/Server/Login' => Http::response([['JWTToken' => jwt(now()->addDays(7)->timestamp)]]),
+        '*/Debtor/Get' => Http::response(['Message' => 'Stream was not readable.'], 500),
+    ]);
+
+    $seen = [];
+
+    autocount()->setFailedCallback(function ($response) use (&$seen) {
+        $seen[] = $response->status();
+
+        return $response;
+    })->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]);
+
+    expect($seen)->toBe([500])
+        ->and(apiRequests())->toHaveCount(2);
+});
+
+it('still throws on an HTTP 200 with a Fail status', function () {
+    Cache::put('autocount_token_app-1', jwt(now()->addDays(3)->timestamp));
+
+    Http::fake(['*/Debtor/Get' => Http::response(['Status' => 'Fail', 'Message' => 'Not allowed'])]);
+
+    expect(fn () => autocount()->callApi('Debtor/Get', 'POST', []))
+        ->toThrow(\Exception::class, 'Not allowed');
+
+    expect(loginRequests())->toHaveCount(0)
+        ->and(apiRequests())->toHaveCount(1);
 });

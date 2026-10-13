@@ -51,6 +51,11 @@ class Autocount
     public $settings = [];
 
     /**
+     * Whether the token last handed out by getToken() was minted by a login
+     */
+    protected $tokenWasMinted = false;
+
+    /**
      * Constructor
      */
     public function __construct()
@@ -150,7 +155,11 @@ class Autocount
         $cachekey = $this->getCacheKey();
         $cache = Cache::get($cachekey);
 
-        if ($cache && $this->getTokenTtl($cache) !== 0) return $cache;
+        if ($cache && $this->getTokenTtl($cache) !== 0) {
+            $this->tokenWasMinted = false;
+
+            return $cache;
+        }
 
         Cache::forget($cachekey);
 
@@ -174,6 +183,8 @@ class Autocount
 
         if ($ttl !== 0) Cache::put($cachekey, $token, $ttl);
 
+        $this->tokenWasMinted = true;
+
         return $token;
     }
 
@@ -185,7 +196,7 @@ class Autocount
      * token must leave the cache before its `exp`. Returns 0 when it is already
      * (or about to be) expired, and an hour when `exp` cannot be read.
      */
-    public function getTokenTtl($token) : int
+    protected function getTokenTtl($token) : int
     {
         $payload = explode('.', (string) $token)[1] ?? '';
         $payload = json_decode(base64_decode(strtr($payload, '-_', '+/')), true);
@@ -245,9 +256,10 @@ class Autocount
     {
         $result = $this->sendRequest($uri, $method, $data);
 
-        // The token may have been invalidated on the Autocount side before its
-        // `exp`. Drop it, log in again, and retry once.
-        if ($result->failed()) {
+        // An expired token is rejected before Autocount runs the handler, so nothing
+        // was posted and replaying the same request once is safe. Any other failure,
+        // and a token minted during this very call, surfaces as it did before.
+        if ($this->isExpiredTokenResponse($result) && !$this->tokenWasMinted) {
             Cache::forget($this->getCacheKey());
 
             $result = $this->sendRequest($uri, $method, $data);
@@ -266,6 +278,17 @@ class Autocount
         throw_if($status === 'Fail', \Exception::class, $message);
 
         return $result;
+    }
+
+    /**
+     * Is this response Autocount rejecting an expired token?
+     *
+     * It answers 500 "Stream was not readable" for every endpoint, not 401.
+     */
+    protected function isExpiredTokenResponse($result) : bool
+    {
+        return $result->status() === 401
+            || ($result->status() === 500 && str_contains($result->body(), 'Stream was not readable'));
     }
 
     /**
