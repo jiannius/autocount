@@ -205,12 +205,14 @@ it('does not retry when the token was minted during the same call', function () 
         ->and(apiRequests())->toHaveCount(1);
 });
 
-it('runs the failed callback once, on the final response', function () {
+it('runs the failed callback once, on the replayed response', function () {
     Cache::put('autocount_token_app-1', jwt(now()->addDays(3)->timestamp));
 
     Http::fake([
         '*/Server/Login' => Http::response([['JWTToken' => jwt(now()->addDays(7)->timestamp)]]),
-        '*/Debtor/Get' => Http::response(['Message' => 'Stream was not readable.'], 500),
+        '*/Debtor/Get' => Http::sequence()
+            ->push(['Message' => 'Stream was not readable.'], 500)
+            ->push('unavailable', 503),
     ]);
 
     $seen = [];
@@ -221,7 +223,7 @@ it('runs the failed callback once, on the final response', function () {
         return $response;
     })->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]);
 
-    expect($seen)->toBe([500])
+    expect($seen)->toBe([503])
         ->and(apiRequests())->toHaveCount(2);
 });
 
@@ -235,4 +237,65 @@ it('still throws on an HTTP 200 with a Fail status', function () {
 
     expect(loginRequests())->toHaveCount(0)
         ->and(apiRequests())->toHaveCount(1);
+});
+
+it('does not retry an unrelated 500 and keeps its message', function () {
+    Cache::put('autocount_token_app-1', jwt(now()->addDays(3)->timestamp));
+
+    Http::fake([
+        '*/Debtor/Get' => Http::response(['Message' => 'Object reference not set to an instance of an object.'], 500),
+    ]);
+
+    $thrown = null;
+
+    try {
+        autocount()->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]);
+    } catch (RequestException $e) {
+        $thrown = $e;
+    }
+
+    expect($thrown)->not->toBeNull()
+        ->and($thrown->getMessage())->toContain('Object reference not set to an instance of an object.')
+        ->and(loginRequests())->toHaveCount(0)
+        ->and(apiRequests())->toHaveCount(1);
+});
+
+it('replays once after a 401 on a cached token', function () {
+    $fresh = jwt(now()->addDays(7)->timestamp);
+
+    Cache::put('autocount_token_app-1', jwt(now()->addDays(3)->timestamp));
+
+    Http::fake([
+        '*/Server/Login' => Http::response([['JWTToken' => $fresh]]),
+        '*/Debtor/Get' => Http::sequence()->push('unauthorized', 401)->push([]),
+    ]);
+
+    autocount()->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]);
+
+    expect(loginRequests())->toHaveCount(1)
+        ->and(apiRequests())->toHaveCount(2);
+});
+
+it('retries on a later call of the same instance once its token comes from the cache', function () {
+    $minted = jwt(now()->addDays(7)->timestamp);
+
+    Http::fake([
+        '*/Server/Login' => Http::response([['JWTToken' => $minted]]),
+        '*/Debtor/Get' => Http::sequence()
+            ->push([])
+            ->push(['Message' => 'Stream was not readable.'], 500)
+            ->push([]),
+    ]);
+
+    $autocount = autocount();
+
+    $autocount->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]);
+
+    expect(loginRequests())->toHaveCount(1)
+        ->and(apiRequests())->toHaveCount(1);
+
+    $autocount->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]);
+
+    expect(loginRequests())->toHaveCount(2)
+        ->and(apiRequests())->toHaveCount(3);
 });

@@ -257,8 +257,10 @@ class Autocount
         $result = $this->sendRequest($uri, $method, $data);
 
         // An expired token is rejected before Autocount runs the handler, so nothing
-        // was posted and replaying the same request once is safe. Any other failure,
-        // and a token minted during this very call, surfaces as it did before.
+        // was posted and replaying the same request once is safe. That is observed,
+        // not documented: seen in smgdms prod on 2026-10-13 (Project/GetProject after
+        // the token expired) and in legacy smgcrm on every endpoint. Any other
+        // failure, and a token minted during this very call, surfaces as it did before.
         if ($this->isExpiredTokenResponse($result) && !$this->tokenWasMinted) {
             Cache::forget($this->getCacheKey());
 
