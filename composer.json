@@ -8,12 +8,18 @@
     },
     "require-dev": {
         "laravel/pail": "^1.0",
-        "orchestra/testbench": "^8.0|^9.0|^10.0|^11.0"
+        "orchestra/testbench": "^8.0|^9.0|^10.0|^11.0",
+        "pestphp/pest": "^5.3"
     },
     "license": "MIT",
     "autoload": {
         "psr-4": {
             "Jiannius\\Autocount\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Jiannius\\Autocount\\Tests\\": "tests/"
         }
     },
     "authors": [
@@ -33,7 +39,8 @@
     "prefer-stable": false,
     "config": {
         "allow-plugins": {
-            "php-http/discovery": true
+            "php-http/discovery": true,
+            "pestphp/pest-plugin": true
         }
     }
 }

@@ -51,6 +51,11 @@ class Autocount
     public $settings = [];
 
     /**
+     * Whether the token last handed out by getToken() was minted by a login
+     */
+    protected $tokenWasMinted = false;
+
+    /**
      * Constructor
      */
     public function __construct()
@@ -150,7 +155,11 @@ class Autocount
         $cachekey = $this->getCacheKey();
         $cache = Cache::get($cachekey);
 
-        if ($cache) return $cache;
+        if ($cache && $this->getTokenTtl($cache) !== 0) {
+            $this->tokenWasMinted = false;
+
+            return $cache;
+        }
 
         Cache::forget($cachekey);
 
@@ -170,9 +179,32 @@ class Autocount
 
         throw_if(!$token, \Exception::class, 'Unable to get Autocount Token from API Server');
 
-        Cache::put($cachekey, $token);
+        $ttl = $this->getTokenTtl($token);
+
+        if ($ttl !== 0) Cache::put($cachekey, $token, $ttl);
+
+        $this->tokenWasMinted = true;
 
         return $token;
+    }
+
+    /**
+     * Get the seconds a token may still be cached for
+     *
+     * Tokens are JWTs that last 7 days. Once one expires Autocount does not answer
+     * 401 — it answers every endpoint with 500 "Stream was not readable" — so the
+     * token must leave the cache before its `exp`. Returns 0 when it is already
+     * (or about to be) expired, and an hour when `exp` cannot be read.
+     */
+    protected function getTokenTtl($token) : int
+    {
+        $payload = explode('.', (string) $token)[1] ?? '';
+        $payload = json_decode(base64_decode(strtr($payload, '-_', '+/')), true);
+        $exp = is_array($payload) ? data_get($payload, 'exp') : null;
+
+        if (!is_numeric($exp)) return 3600;
+
+        return max(0, (int) $exp - time() - 300);
     }
 
     /**
@@ -222,6 +254,50 @@ class Autocount
      */
     public function callApi($uri, $method = 'GET', $data = []) : mixed
     {
+        $result = $this->sendRequest($uri, $method, $data);
+
+        // An expired token is rejected before Autocount runs the handler, so nothing
+        // was posted and replaying the same request once is safe. That is observed,
+        // not documented: seen in smgdms prod on 2026-10-13 (Project/GetProject after
+        // the token expired) and in legacy smgcrm on every endpoint. Any other
+        // failure, and a token minted during this very call, surfaces as it did before.
+        if ($this->isExpiredTokenResponse($result) && !$this->tokenWasMinted) {
+            Cache::forget($this->getCacheKey());
+
+            $result = $this->sendRequest($uri, $method, $data);
+        }
+
+        // system level fail
+        if ($result->failed()) {
+            if ($callback = $this->getSettings('failed_callback')) $result = $callback($result);
+            else $result->throw();
+        }
+
+        // response level fail
+        $status = data_get($result->json(), 'Status');
+        $message = data_get($result->json(), 'Message');
+
+        throw_if($status === 'Fail', \Exception::class, $message);
+
+        return $result;
+    }
+
+    /**
+     * Is this response Autocount rejecting an expired token?
+     *
+     * It answers 500 "Stream was not readable" for every endpoint, not 401.
+     */
+    protected function isExpiredTokenResponse($result) : bool
+    {
+        return $result->status() === 401
+            || ($result->status() === 500 && str_contains($result->body(), 'Stream was not readable'));
+    }
+
+    /**
+     * Send one request to the API
+     */
+    protected function sendRequest($uri, $method, $data)
+    {
         $method = strtolower($method);
         $token = $this->getToken();
 
@@ -243,24 +319,10 @@ class Autocount
         // payload with JSON_PRESERVE_ZERO_FRACTION was accepted.
         //
         // GET has no body — there $data is the query string.
-        $result = $method === 'get'
+        return $method === 'get'
             ? $request->get($url, $data)
             : $request
                 ->withBody(json_encode($data, JSON_PRESERVE_ZERO_FRACTION), 'application/json')
                 ->$method($url);
-
-        // system level fail
-        if ($result->failed()) {
-            if ($callback = $this->getSettings('failed_callback')) $result = $callback($result);
-            else $result->throw();
-        }
-
-        // response level fail
-        $status = data_get($result->json(), 'Status');
-        $message = data_get($result->json(), 'Message');
-
-        throw_if($status === 'Fail', \Exception::class, $message);
-
-        return $result;
     }
 }
