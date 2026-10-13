@@ -10,7 +10,7 @@ A Laravel package (`jiannius/autocount`) that wraps the Autocount accounting sof
 - Service provider auto-registered via `composer.json` → `extra.laravel.providers`
 - Container binding: `app('autocount')` returns a fresh `Autocount` instance (`AutocountServiceProvider::boot`)
 
-There is no build step, no lint config, and no test suite committed. `orchestra/testbench` is a dev dependency but nothing wires it up — adding tests means standing the harness up from scratch.
+There is no build step and no lint config. Tests are Pest on Testbench: `vendor/bin/pest`.
 
 ## Architecture
 
@@ -27,7 +27,7 @@ When adding support for a new Autocount API resource, the pattern is:
 
 ### Token & error conventions
 
-- Token is cached in Laravel's cache under `autocount_token_<app_id>` by `getToken()`. It's only re-fetched on a cache miss; the package never expires the token itself.
+- Token is cached in Laravel's cache under `autocount_token_<app_id>` by `getToken()`. It is cached until 5 minutes before the JWT `exp` (1 hour if `exp` is unreadable), and `callApi()` forgets it, logs in again and retries once on a failed response — an expired token makes Autocount answer 500 "Stream was not readable", not 401.
 - Two failure layers in `callApi()`: HTTP-level failure (`$result->failed()`) routes through `setFailedCallback()` if set, otherwise re-throws; response-level failure is detected by `Status === 'Fail'` in the JSON body and thrown as `\Exception` with the upstream `Message`.
 - Several traits also re-check `Status === 'Fail'` after `callApi()` returns — this is a defensive double-check (the inner `callApi` already throws on top-level fail, but list responses may contain per-row statuses). When mirroring this in a new trait, follow the convention of the closest existing trait.
 - `getX()` methods swallow "not found" errors and return `[]` (see `getInvoices`, `getCashBooks`). Match this idiom in new read methods so callers don't need try/catch for empty-result cases.
