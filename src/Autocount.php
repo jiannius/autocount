@@ -3,6 +3,7 @@
 namespace Jiannius\Autocount;
 
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -72,6 +73,9 @@ class Autocount
             'user_id' => config('services.autocount.user_id'),
             'password' => config('services.autocount.password'),
             'failed_callback' => null,
+            'timeout' => null,
+            'connect_timeout' => null,
+            'request_listener' => null,
         ];
     }
 
@@ -117,6 +121,59 @@ class Autocount
     public function setFailedCallback($value)
     {
         $this->settings['failed_callback'] = $value;
+        return $this;
+    }
+
+    /**
+     * Set the request timeout, in seconds
+     *
+     * Applies to every request including the login call. Unset, Laravel's default
+     * (30 seconds) stands.
+     */
+    public function setTimeout(int $seconds)
+    {
+        $this->settings['timeout'] = $seconds;
+        return $this;
+    }
+
+    /**
+     * Set the connect timeout, in seconds
+     *
+     * Applies to every request including the login call. Unset, Laravel's default
+     * (10 seconds) stands.
+     */
+    public function setConnectTimeout(int $seconds)
+    {
+        $this->settings['connect_timeout'] = $seconds;
+        return $this;
+    }
+
+    /**
+     * Listen to every HTTP attempt
+     *
+     * The listener is called once per HTTP attempt — the login call, the request, and
+     * the replay of the request after an expired token — with exactly four arguments:
+     *
+     *   string  $uri          the endpoint, e.g. 'ARInvoice/GetARInvoice'; the login
+     *                         call is 'Server/Login'
+     *   ?int    $status       the HTTP status, null when there was no response
+     *   int     $durationMs   wall time of the attempt, in milliseconds
+     *   string  $outcome      one of:
+     *
+     *     ok             answered, no Status Fail
+     *     refused        answered 2xx with Status Fail
+     *     expired_token  a cached token was rejected (401, or 500 "Stream was not
+     *                    readable"); the next call with the same uri is its replay
+     *     http_error     any other 4xx
+     *     server_error   5xx, or a 2xx whose body is not JSON
+     *     unreachable    connection error or timeout; $status is null
+     *
+     * Never the body, headers, token or payload. A listener that throws is ignored.
+     * One listener is kept; calling this again replaces it.
+     */
+    public function onRequest(callable $listener)
+    {
+        $this->settings['request_listener'] = $listener;
         return $this;
     }
 
@@ -179,10 +236,10 @@ class Autocount
         // Nothing but credentials has been sent at this point, so any failure here is
         // an AutocountLoginFailed — the real request never left.
         try {
-            $response = Http::withHeader('AppID', $this->getSettings('app_id'))->post(url: $url, data: [
+            $response = $this->track('Server/Login', fn () => $this->applyTimeouts(Http::withHeader('AppID', $this->getSettings('app_id')))->post(url: $url, data: [
                 'UserID' => $userId,
                 'Password' => $password,
-            ])->throw();
+            ]), login: true)->throw();
         }
         catch (ConnectionException|RequestException $e) {
             throw new AutocountLoginFailed($e->getMessage(), 0, $e);
@@ -379,10 +436,10 @@ class Autocount
         if (!$token) abort(500, 'Missing Autocount Token');
 
         $url = $this->getEndpoint($uri);
-        $request = Http::withHeaders([
+        $request = $this->applyTimeouts(Http::withHeaders([
             'Authorization' => $token,
             'AppId' => $this->getSettings('app_id'),
-        ]);
+        ]));
 
         // A whole amount must stay a decimal on the wire. json_encode() drops the
         // fractional zero, so 89888.00 goes out as the token 89888, and Autocount
@@ -394,10 +451,80 @@ class Autocount
         // payload with JSON_PRESERVE_ZERO_FRACTION was accepted.
         //
         // GET has no body — there $data is the query string.
-        return $method === 'get'
+        return $this->track($uri, fn () => $method === 'get'
             ? $request->get($url, $data)
             : $request
                 ->withBody(json_encode($data, JSON_PRESERVE_ZERO_FRACTION), 'application/json')
-                ->$method($url);
+                ->$method($url));
+    }
+
+    /**
+     * Apply the configured timeouts to a request
+     *
+     * Protected so a subclass that overrides sendRequest() can still honour
+     * setTimeout() / setConnectTimeout() by passing its own request through here.
+     */
+    protected function applyTimeouts(PendingRequest $request) : PendingRequest
+    {
+        if (($timeout = $this->getSettings('timeout')) !== null) $request->timeout($timeout);
+        if (($timeout = $this->getSettings('connect_timeout')) !== null) $request->connectTimeout($timeout);
+
+        return $request;
+    }
+
+    /**
+     * Run one HTTP attempt and report it to the request listener
+     *
+     * sendRequest() and the login call go through here. A subclass that replaces
+     * sendRequest() wholesale gets no listener events for its own request (the login
+     * call still reports); wrap the send in track() to keep them.
+     */
+    protected function track(string $uri, callable $send, bool $login = false)
+    {
+        $start = hrtime(true);
+
+        try {
+            $response = $send();
+        }
+        catch (ConnectionException $e) {
+            $this->notify($uri, null, $start, 'unreachable');
+
+            throw $e;
+        }
+
+        $this->notify($uri, $response->status(), $start, $this->outcomeOf($response, $login));
+
+        return $response;
+    }
+
+    /**
+     * Classify one HTTP attempt for the request listener
+     */
+    protected function outcomeOf($response, bool $login) : string
+    {
+        if (!$response->failed()) {
+            if ($this->isUnreadable($response)) return 'server_error';
+
+            return data_get($response->json(), 'Status') === 'Fail' ? 'refused' : 'ok';
+        }
+
+        if (!$login && $this->isExpiredTokenResponse($response) && !$this->tokenWasMinted) return 'expired_token';
+
+        return $response->serverError() ? 'server_error' : 'http_error';
+    }
+
+    /**
+     * Tell the request listener, swallowing anything it throws
+     */
+    protected function notify(string $uri, ?int $status, int|float $start, string $outcome) : void
+    {
+        if (!is_callable($listener = $this->getSettings('request_listener'))) return;
+
+        try {
+            $listener($uri, $status, (int) round((hrtime(true) - $start) / 1e6), $outcome);
+        }
+        catch (\Throwable) {
+            // observing a request must never break it
+        }
     }
 }
