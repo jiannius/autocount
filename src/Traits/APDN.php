@@ -31,7 +31,7 @@ trait APDN
 
         $result = $api->json();
 
-        throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
+        throw_if(data_get($result, 'Status') === 'Fail', \Jiannius\Autocount\Exceptions\AutocountRefused::class, data_get($result, 'Message'));
 
         return $result;
     }
@@ -52,7 +52,7 @@ trait APDN
         }
         catch (\Exception $e) {
             if ($this->isRecordNotFound($e)) return [];
-            else throw new \Exception($e->getMessage());
+            else throw $e;
         }
     }
 
@@ -69,7 +69,7 @@ trait APDN
 
         $result = $api->json();
 
-        throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
+        throw_if(data_get($result, 'Status') === 'Fail', \Jiannius\Autocount\Exceptions\AutocountRefused::class, data_get($result, 'Message'));
 
         return $result;
     }
@@ -87,7 +87,7 @@ trait APDN
 
         $result = $api->json();
 
-        throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
+        throw_if(data_get($result, 'Status') === 'Fail', \Jiannius\Autocount\Exceptions\AutocountRefused::class, data_get($result, 'Message'));
 
         return $result;
     }
@@ -108,7 +108,7 @@ trait APDN
 
         $result = $api->json();
 
-        throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
+        throw_if(data_get($result, 'Status') === 'Fail', \Jiannius\Autocount\Exceptions\AutocountRefused::class, data_get($result, 'Message'));
 
         return $result;
     }

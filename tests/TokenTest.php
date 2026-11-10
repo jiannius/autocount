@@ -2,38 +2,11 @@
 
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Jiannius\Autocount\Autocount;
-
-function jwt(int $exp) : string
-{
-    $encode = fn (array $part) => rtrim(strtr(base64_encode(json_encode($part)), '+/', '-_'), '=');
-
-    return $encode(['alg' => 'HS256', 'typ' => 'JWT']).'.'.$encode(['exp' => $exp]).'.signature';
-}
-
-function autocount() : Autocount
-{
-    return (new Autocount)
-        ->setUrl('https://autocount.test')
-        ->setAppId('app-1')
-        ->setUserId('user')
-        ->setPassword('secret');
-}
-
-function loginRequests() : Collection
-{
-    return Http::recorded(fn ($request) => str_ends_with($request->url(), 'Server/Login'))
-        ->map(fn ($pair) => $pair[0]);
-}
-
-function apiRequests() : Collection
-{
-    return Http::recorded(fn ($request) => str_ends_with($request->url(), 'Debtor/Get'))
-        ->map(fn ($pair) => $pair[0]);
-}
+use Jiannius\Autocount\Exceptions\AutocountRefused;
+use Jiannius\Autocount\Exceptions\AutocountServerError;
+use Jiannius\Autocount\Exceptions\AutocountUnreachable;
 
 beforeEach(function () {
     Cache::flush();
@@ -87,7 +60,7 @@ it('retries only once when the call keeps failing', function () {
         '*/Debtor/Get' => Http::response(['Message' => 'Stream was not readable.'], 500),
     ]);
 
-    expect(fn () => autocount()->callApi('Debtor/Get'))->toThrow(RequestException::class);
+    expect(fn () => autocount()->callApi('Debtor/Get'))->toThrow(AutocountServerError::class);
 
     expect(loginRequests())->toHaveCount(1)
         ->and(apiRequests())->toHaveCount(2);
@@ -168,7 +141,7 @@ it('does not retry a POST rejected with a 503', function () {
     Http::fake(['*/Debtor/Get' => Http::response('unavailable', 503)]);
 
     expect(fn () => autocount()->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]))
-        ->toThrow(RequestException::class);
+        ->toThrow(AutocountServerError::class);
 
     expect(loginRequests())->toHaveCount(0)
         ->and(apiRequests())->toHaveCount(1);
@@ -186,7 +159,7 @@ it('lets a connection failure propagate without a retry', function () {
     }]);
 
     expect(fn () => autocount()->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]))
-        ->toThrow(ConnectionException::class);
+        ->toThrow(AutocountUnreachable::class);
 
     expect(loginRequests())->toHaveCount(0)
         ->and($attempts)->toBe(1);
@@ -199,7 +172,7 @@ it('does not retry when the token was minted during the same call', function () 
     ]);
 
     expect(fn () => autocount()->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]))
-        ->toThrow(RequestException::class);
+        ->toThrow(AutocountServerError::class);
 
     expect(loginRequests())->toHaveCount(1)
         ->and(apiRequests())->toHaveCount(1);
@@ -233,7 +206,7 @@ it('still throws on an HTTP 200 with a Fail status', function () {
     Http::fake(['*/Debtor/Get' => Http::response(['Status' => 'Fail', 'Message' => 'Not allowed'])]);
 
     expect(fn () => autocount()->callApi('Debtor/Get', 'POST', []))
-        ->toThrow(\Exception::class, 'Not allowed');
+        ->toThrow(AutocountRefused::class, 'Not allowed');
 
     expect(loginRequests())->toHaveCount(0)
         ->and(apiRequests())->toHaveCount(1);
@@ -250,7 +223,7 @@ it('does not retry an unrelated 500 and keeps its message', function () {
 
     try {
         autocount()->callApi('Debtor/Get', 'POST', ['Amount' => 10.0]);
-    } catch (RequestException $e) {
+    } catch (AutocountServerError $e) {
         $thrown = $e;
     }
 
