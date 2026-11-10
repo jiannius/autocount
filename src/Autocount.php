@@ -55,6 +55,36 @@ class Autocount
     use PurchaseInvoice;
     use TaxEntity;
 
+    /**
+     * Every read endpoint the traits call — the ones whose last segment is `Get…`
+     *
+     * Reads change nothing in Autocount, so a consumer may retry them freely; every
+     * other endpoint is a write. tests/ReadsTest.php fails when a trait calls a Get
+     * endpoint that is not listed here.
+     */
+    public const READS = [
+        'APCreditNote/GetAPCreditNote',
+        'APDebitNote/GetAPDebitNote',
+        'APInvoice/GetAPInvoice',
+        'APPayment/GetAPPayment',
+        'ARCreditNote/GetARCreditNote',
+        'ARDebitNote/GetARDebitNote',
+        'ARInvoice/GetARInvoice',
+        'ARPayment/GetARPayment',
+        'ARRefund/GetARRefund',
+        'CashBook/GetCashBook',
+        'CashSales/GetCashSales',
+        'CreditNote/GetCreditNote',
+        'Creditor/GetCreditor',
+        'DebitNote/GetDebitNote',
+        'Debtor/GetDebtor',
+        'Invoice/GetInvoice',
+        'Project/GetProject',
+        'PurchaseInvoice/GetPurchaseInvoice',
+        'TaxEntity/GetTaxEntity',
+        'V2/Item/GetItem',
+    ];
+
     public $settings = [];
 
     /**
@@ -259,6 +289,41 @@ class Autocount
     }
 
     /**
+     * Make sure there is a usable token, and say how long it has left
+     *
+     * Takes the cached token or logs in for a fresh one (so it throws
+     * AutocountLoginFailed when that fails), and returns the real seconds until the
+     * token's JWT `exp` — not the shorter cache window of getTokenTtl(). When `exp`
+     * cannot be read it returns 3600, the same one-hour assumption getTokenTtl() makes.
+     */
+    public function ensureToken() : int
+    {
+        $exp = $this->getTokenExp($this->getToken());
+
+        return $exp === null ? 3600 : max(0, $exp - time());
+    }
+
+    /**
+     * The read endpoints, see READS
+     */
+    public static function readEndpoints() : array
+    {
+        return static::READS;
+    }
+
+    /**
+     * The JWT `exp` of a token, or null when it cannot be read
+     */
+    protected function getTokenExp($token) : ?int
+    {
+        $payload = explode('.', (string) $token)[1] ?? '';
+        $payload = json_decode(base64_decode(strtr($payload, '-_', '+/')), true);
+        $exp = is_array($payload) ? data_get($payload, 'exp') : null;
+
+        return is_numeric($exp) ? (int) $exp : null;
+    }
+
+    /**
      * Get the seconds a token may still be cached for
      *
      * Tokens are JWTs that last 7 days. Once one expires Autocount does not answer
@@ -268,13 +333,11 @@ class Autocount
      */
     protected function getTokenTtl($token) : int
     {
-        $payload = explode('.', (string) $token)[1] ?? '';
-        $payload = json_decode(base64_decode(strtr($payload, '-_', '+/')), true);
-        $exp = is_array($payload) ? data_get($payload, 'exp') : null;
+        $exp = $this->getTokenExp($token);
 
-        if (!is_numeric($exp)) return 3600;
+        if ($exp === null) return 3600;
 
-        return max(0, (int) $exp - time() - 300);
+        return max(0, $exp - time() - 300);
     }
 
     /**
