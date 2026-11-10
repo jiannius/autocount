@@ -64,7 +64,7 @@ trait Debtor
 
         $debtor = data_get($api->json(), '0');
 
-        throw_if(data_get($debtor, 'Status') === 'Fail', \Exception::class, data_get($debtor, 'Message'));
+        throw_if(data_get($debtor, 'Status') === 'Fail', \Jiannius\Autocount\Exceptions\AutocountRefused::class, data_get($debtor, 'Message'));
 
         return $debtor;
     }

@@ -42,7 +42,7 @@ trait Project
         }
         catch (\Exception $e) {
             if (str($e->getMessage())->is('*not found*')) return [];
-            else throw new \Exception($e->getMessage());
+            else throw $e;
         }
     }
 

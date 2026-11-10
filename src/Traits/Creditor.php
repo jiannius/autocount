@@ -56,7 +56,7 @@ trait Creditor
 
         $creditor = data_get($api->json(), '0');
 
-        throw_if(data_get($creditor, 'Status') === 'Fail', \Exception::class, data_get($creditor, 'Message'));
+        throw_if(data_get($creditor, 'Status') === 'Fail', \Jiannius\Autocount\Exceptions\AutocountRefused::class, data_get($creditor, 'Message'));
 
         return $creditor;
     }

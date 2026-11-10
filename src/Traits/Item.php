@@ -77,7 +77,7 @@ trait Item
 
         $result = $api->json();
 
-        throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
+        throw_if(data_get($result, 'Status') === 'Fail', \Jiannius\Autocount\Exceptions\AutocountRefused::class, data_get($result, 'Message'));
 
         return $result;
     }
@@ -109,7 +109,7 @@ trait Item
 
         $result = $api->json();
 
-        throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
+        throw_if(data_get($result, 'Status') === 'Fail', \Jiannius\Autocount\Exceptions\AutocountRefused::class, data_get($result, 'Message'));
 
         return $result;
     }
@@ -127,7 +127,7 @@ trait Item
 
         $result = $api->json();
 
-        throw_if(data_get($result, 'Status') === 'Fail', \Exception::class, data_get($result, 'Message'));
+        throw_if(data_get($result, 'Status') === 'Fail', \Jiannius\Autocount\Exceptions\AutocountRefused::class, data_get($result, 'Message'));
 
         return $result;
     }

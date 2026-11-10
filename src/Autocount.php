@@ -2,8 +2,14 @@
 
 namespace Jiannius\Autocount;
 
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Jiannius\Autocount\Exceptions\AutocountLoginFailed;
+use Jiannius\Autocount\Exceptions\AutocountRefused;
+use Jiannius\Autocount\Exceptions\AutocountServerError;
+use Jiannius\Autocount\Exceptions\AutocountUnreachable;
 use Jiannius\Autocount\Traits\APCN;
 use Jiannius\Autocount\Traits\APDN;
 use Jiannius\Autocount\Traits\APInvoice;
@@ -127,7 +133,7 @@ class Autocount
      */
     public function getEndpoint($uri)
     {
-        throw_if(!$this->getSettings('url'), \Exception::class, 'Missing Autocount API Server URL');
+        throw_if(!$this->getSettings('url'), AutocountLoginFailed::class, 'Missing Autocount API Server URL');
 
         $tail = '/api/';
         $base = str($this->getSettings('url').$tail)->finish($tail);
@@ -142,7 +148,7 @@ class Autocount
     {
         $appId = $this->getSettings('app_id');
 
-        throw_if(!$appId, \Exception::class, 'Missing Autocount App ID');
+        throw_if(!$appId, AutocountLoginFailed::class, 'Missing Autocount App ID');
 
         return 'autocount_token_'.$appId;
     }
@@ -166,18 +172,25 @@ class Autocount
         $userId = $this->getSettings('user_id');
         $password = $this->getSettings('password');
 
-        throw_if(!$userId || !$password, \Exception::class, 'Missing Autocount User ID / Password');
+        throw_if(!$userId || !$password, AutocountLoginFailed::class, 'Missing Autocount User ID / Password');
 
         $url = $this->getEndpoint('Server/Login');
 
-        $response = Http::withHeader('AppID', $this->getSettings('app_id'))->post(url: $url, data: [
-            'UserID' => $userId,
-            'Password' => $password,
-        ])->throw();
+        // Nothing but credentials has been sent at this point, so any failure here is
+        // an AutocountLoginFailed — the real request never left.
+        try {
+            $response = Http::withHeader('AppID', $this->getSettings('app_id'))->post(url: $url, data: [
+                'UserID' => $userId,
+                'Password' => $password,
+            ])->throw();
+        }
+        catch (ConnectionException|RequestException $e) {
+            throw new AutocountLoginFailed($e->getMessage(), 0, $e);
+        }
 
         $token = data_get($response->json(), '0.JWTToken');
 
-        throw_if(!$token, \Exception::class, 'Unable to get Autocount Token from API Server');
+        throw_if(!$token, AutocountLoginFailed::class, 'Unable to get Autocount Token from API Server');
 
         $ttl = $this->getTokenTtl($token);
 
@@ -243,6 +256,9 @@ class Autocount
      */
     public function isRecordNotFound(\Throwable $e) : bool
     {
+        // No answer from Autocount is never "the record isn't there".
+        if ($e instanceof ConnectionException || $e instanceof AutocountUnreachable) return false;
+
         $message = str($e->getMessage());
 
         return $message->slug()->is('*not-found*')
@@ -251,10 +267,21 @@ class Autocount
 
     /**
      * Call the API
+     *
+     * Failures surface as one of:
+     *
+     *   AutocountLoginFailed   no token could be obtained; nothing was sent
+     *   AutocountUnreachable   connection error / timeout (previous: ConnectionException)
+     *   AutocountServerError   5xx, or a reply that is not JSON (previous: RequestException)
+     *   RequestException       any other HTTP failure (4xx), unchanged
+     *   AutocountRefused       HTTP 2xx with `Status: Fail`; message is Autocount's own
+     *
+     * When a failed callback is set it receives the failed response instead of the
+     * HTTP-level exception being thrown.
      */
     public function callApi($uri, $method = 'GET', $data = []) : mixed
     {
-        $result = $this->sendRequest($uri, $method, $data);
+        $result = $this->attempt($uri, $method, $data);
 
         // An expired token is rejected before Autocount runs the handler, so nothing
         // was posted and replaying the same request once is safe. That is observed,
@@ -264,22 +291,70 @@ class Autocount
         if ($this->isExpiredTokenResponse($result) && !$this->tokenWasMinted) {
             Cache::forget($this->getCacheKey());
 
-            $result = $this->sendRequest($uri, $method, $data);
+            $result = $this->attempt($uri, $method, $data);
         }
 
         // system level fail
         if ($result->failed()) {
             if ($callback = $this->getSettings('failed_callback')) $result = $callback($result);
-            else $result->throw();
+            else throw $this->failureFor($result);
+        }
+        elseif ($this->isUnreadable($result)) {
+            throw new AutocountServerError('Autocount returned a reply that is not valid JSON', $result->status());
         }
 
         // response level fail
         $status = data_get($result->json(), 'Status');
         $message = data_get($result->json(), 'Message');
 
-        throw_if($status === 'Fail', \Exception::class, $message);
+        throw_if($status === 'Fail', AutocountRefused::class, $message);
 
         return $result;
+    }
+
+    /**
+     * Send one request, turning a transport failure into AutocountUnreachable
+     */
+    protected function attempt($uri, $method, $data)
+    {
+        try {
+            return $this->sendRequest($uri, $method, $data);
+        }
+        catch (ConnectionException $e) {
+            throw new AutocountUnreachable($e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * The exception for a failed HTTP response
+     *
+     * A 5xx is an AutocountServerError (outcome unknown). Anything else, a 4xx, stays
+     * the RequestException it always was — a definite rejection that consumers
+     * already treat as such.
+     */
+    protected function failureFor($result) : \Throwable
+    {
+        $e = $result->toException();
+
+        return $result->serverError()
+            ? new AutocountServerError($e->getMessage(), $result->status(), $e)
+            : $e;
+    }
+
+    /**
+     * Did a successful response carry a body that is not JSON?
+     *
+     * An empty body is let through, as it always was.
+     */
+    protected function isUnreadable($result) : bool
+    {
+        $body = trim($result->body());
+
+        if ($body === '') return false;
+
+        json_decode($body);
+
+        return json_last_error() !== JSON_ERROR_NONE;
     }
 
     /**
