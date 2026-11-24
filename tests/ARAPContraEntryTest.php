@@ -54,7 +54,7 @@ it('throws AutocountRefused with the raw message when Autocount refuses', functi
 
     expect(fn () => autocount()->$method(contraPayload(['DocNo' => 'JV-000016'])))
         ->toThrow(AutocountRefused::class, 'Knock off amount exceeds outstanding');
-})->with(['createARAPContraEntry', 'updateARAPContraEntry']);
+})->with(['createARAPContraEntry', 'updateARAPContraEntry', 'deleteARAPContraEntries', 'cancelARAPContraEntries']);
 
 it('throws AutocountServerError on a 5xx', function (string $method) {
     Http::fake(['*' => Http::response('boom', 500)]);
@@ -67,3 +67,42 @@ it('throws AutocountUnreachable on a connection failure', function (string $meth
 
     expect(fn () => autocount()->$method(contraPayload()))->toThrow(AutocountUnreachable::class);
 })->with(['createARAPContraEntry', 'updateARAPContraEntry']);
+
+it('gets contra entries by DocNo and returns [] when none is found', function () {
+    Http::fake(['*/ARAPContraEntry/GetARAPContraEntry' => Http::sequence()
+        ->push([['DocNo' => 'JV-000016']])
+        ->push(['Status' => 'Fail', 'Message' => 'Record not found'])]);
+
+    expect(autocount()->getARAPContraEntries('JV-000016'))->toBe([['DocNo' => 'JV-000016']])
+        ->and(autocount()->getARAPContraEntries(['JV-999999']))->toBe([]);
+
+    Http::assertSent(fn ($request) => $request->method() === 'POST'
+        && $request->url() === 'https://autocount.test/api/ARAPContraEntry/GetARAPContraEntry'
+        && $request['DocNo'] === ['JV-000016']);
+});
+
+it('rethrows a transport failure from get instead of returning []', function () {
+    Http::fake(['*' => fn () => throw new ConnectionException('timed out')]);
+
+    expect(fn () => autocount()->getARAPContraEntries('JV-000016'))->toThrow(AutocountUnreachable::class);
+});
+
+it('deletes contra entries by DocNo', function () {
+    Http::fake(['*/ARAPContraEntry/DeleteARAPContraEntry' => Http::response(['Status' => 'Success'])]);
+
+    autocount()->deleteARAPContraEntries('JV-000016');
+
+    Http::assertSent(fn ($request) => $request->method() === 'POST'
+        && $request->url() === 'https://autocount.test/api/ARAPContraEntry/DeleteARAPContraEntry'
+        && $request->data() === ['DocNo' => ['JV-000016']]);
+});
+
+it('cancels contra entries by DocNo', function () {
+    Http::fake(['*/ARAPContraEntry/CancelARAPContraEntry' => Http::response(['Status' => 'Success'])]);
+
+    autocount()->cancelARAPContraEntries(['JV-000016', 'JV-000017']);
+
+    Http::assertSent(fn ($request) => $request->method() === 'POST'
+        && $request->url() === 'https://autocount.test/api/ARAPContraEntry/CancelARAPContraEntry'
+        && $request->data() === ['DocNo' => ['JV-000016', 'JV-000017'], 'Cancelled' => true]);
+});

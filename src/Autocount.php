@@ -69,6 +69,7 @@ class Autocount
         'APDebitNote/GetAPDebitNote',
         'APInvoice/GetAPInvoice',
         'APPayment/GetAPPayment',
+        'ARAPContraEntry/GetARAPContraEntry',
         'ARCreditNote/GetARCreditNote',
         'ARDebitNote/GetARDebitNote',
         'ARInvoice/GetARInvoice',
