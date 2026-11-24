@@ -15,6 +15,7 @@ use Jiannius\Autocount\Traits\APCN;
 use Jiannius\Autocount\Traits\APDN;
 use Jiannius\Autocount\Traits\APInvoice;
 use Jiannius\Autocount\Traits\APPayment;
+use Jiannius\Autocount\Traits\ARAPContraEntry;
 use Jiannius\Autocount\Traits\ARCN;
 use Jiannius\Autocount\Traits\ARInvoice;
 use Jiannius\Autocount\Traits\ARPayment;
@@ -38,6 +39,7 @@ class Autocount
     use APDN;
     use APInvoice;
     use APPayment;
+    use ARAPContraEntry;
     use ARCN;
     use ARInvoice;
     use ARDN;
@@ -67,6 +69,7 @@ class Autocount
         'APDebitNote/GetAPDebitNote',
         'APInvoice/GetAPInvoice',
         'APPayment/GetAPPayment',
+        'ARAPContraEntry/GetARAPContraEntry',
         'ARCreditNote/GetARCreditNote',
         'ARDebitNote/GetARDebitNote',
         'ARInvoice/GetARInvoice',
